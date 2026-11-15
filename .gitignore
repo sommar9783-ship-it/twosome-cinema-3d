@@ -1,0 +1,5 @@
+assets/models/original/
+assets/models/unused/
+node_modules/
+.claude/
+*.log
