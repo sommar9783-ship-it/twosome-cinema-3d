@@ -191,7 +191,7 @@ const VIEW_KEYS=['kiosk_f','kiosk_s','kiosk_b','claw_f','claw_s','claw_b','booth
 // 벽지·바닥: assets/textures/wall1.jpg (패널+액자 벽 디자인), floor.jpg (바닥재). 없으면 기존 코드 그림을 씀
 let WALL=null, FLOOR=null, WALLT=null, CARPET=null;
 // 실제 제품 사진·로고·캠페인 포스터 (assets/textures). 없으면 기존 그림으로 대신함
-const PH={},PH_FILES={main:'poster_main.webp',cake1:'cake1.jpg',cake2:'cake2.jpg',cake3:'cake3.jpg',cake4:'cake4.jpg',drink1:'drink1.webp',drink2:'drink2.webp',logoW:'logo_w.webp',logoB:'logo_b.webp'};
+const PH={},PH_FILES={main:'poster_1.webp',p2:'poster_2.webp',p3:'poster_3.webp',cake1:'cake1.jpg',cake2:'cake2.jpg',cake3:'cake3.jpg',cake4:'cake4.jpg',drink1:'drink1.webp',drink2:'drink2.webp',logoW:'logo_w.webp',logoB:'logo_b.webp'};
 const loadPhotos=()=>Promise.all(Object.keys(PH_FILES).map(k=>loadImg('assets/textures/'+PH_FILES[k]).then(im=>{if(im)PH[k]=im;})));
 // 흰 배경 사진을 밝은 바탕 위에 자연스럽게 올림(곱하기 합성). (cx,cy) 중심, 한 변 s
 function drawPhoto(c,im,cx,cy,s){c.save();c.globalCompositeOperation='multiply';const k=s/Math.max(im.width,im.height);c.drawImage(im,cx-im.width*k/2,cy-im.height*k/2,im.width*k,im.height*k);c.restore();}
@@ -264,6 +264,8 @@ function buildWalls(berryPoster){
     const v=VIEW[key];if(v){const iw=v.tex.image.width,ih=v.tex.image.height,s=Math.min(w*.8/iw,h*.66/ih);c.shadowColor='rgba(0,0,0,.35)';c.shadowBlur=30;c.shadowOffsetY=14;c.drawImage(v.tex.image,(w-iw*s)/2,h*.44-ih*s/2,iw*s,ih*s);c.shadowColor='transparent';}
     c.textAlign='center';c.fillStyle='#f3d79a';c.font=`700 40px ${SERIF}`;c.fillText('TWOSOME CINEMA',w/2,h-104);c.fillStyle='rgba(255,255,255,.85)';c.font=`700 30px ${F}`;c.fillText(title,w/2,h-56);});
   const cover=(im)=>textTex(600,910,(c,w,h)=>{const k=Math.max(w/im.width,h/im.height);c.drawImage(im,(w-im.width*k)/2,(h-im.height*k)/2,im.width*k,im.height*k);});
+  const pic=im=>{if(!im)return null;const t=new THREE.Texture(im);t.encoding=THREE.sRGBEncoding;t.anisotropy=8;t.needsUpdate=true;return {tx:t,w:1.5,h:1.875};};
+  const POS1=pic(PH.main),POS2=pic(PH.p2)||POS1,POS3=pic(PH.p3)||POS1;
   const A_BERRY=PH.main?cover(PH.main):art('berry_f','#5a1a20','#200809','딸기 때문에'),A_CHAR=art('char_f','#f7d9dc','#e58a9c','BERRY FRIENDS'),A_LOC=art('loc_f','#3a1016','#14060a','NOW OPEN');
   const cafeArt=textTex(600,910,(c,w,h)=>{c.fillStyle='#2a0c10';c.fillRect(0,0,w,h);c.strokeStyle='#d9a54a';c.lineWidth=6;c.strokeRect(24,24,w-48,h-48);
     c.textAlign='center';c.textBaseline='middle';drawLogo(c,w/2,300,440,'#f3d79a');c.fillStyle='#f3d79a';c.font=`700 70px ${SERIF}`;c.fillText('CAFE',w/2,405);
@@ -308,12 +310,12 @@ function buildWalls(berryPoster){
       const it=items[i],ft=(i+.55)*bw,fx=x0+ux*ft,fz=z0+uz*ft;
       if(o.lampAll){const lt=(i+(o.lampX||.5))*bw;lamp(x0+ux*lt,o.lampY,z0+uz*lt,ry,nx,nz,o.dark,1.5);}
       if(it===undefined||it===null)continue;
-      const isP=typeof it==='number',pm=frame(isP?discountPoster(it):it,1.3,1.98,fx,2.72,fz,ry,nx,nz);if(isP){pm.userData.poster=it;posterMeshes.push(pm);}
+      const isP=typeof it==='number',isO=!isP&&!!it.tx,pm=frame(isP?discountPoster(it):isO?it.tx:it,isO?it.w:1.3,isO?it.h:1.98,fx,2.72,fz,ry,nx,nz);if(isP){pm.userData.poster=it;posterMeshes.push(pm);}
       lamp(fx,4.12,fz,ry,nx,nz,false,1);}};
   // 로비: 물건(키오스크·인형뽑기·으깨기·포토부스·화분·뒷문) 뒤는 일반 벽, 빈 벽에만 액자
   run(-7.84,26,-7.84,10,6,[,,,2,menuArt,cafeArt]);            // 왼쪽 벽 (뒤→앞): 화분·으깨기·인형뽑기 뒤는 비움
-  run(7.84,10,7.84,26,6,[,,A_BERRY,A_BERRY,,]);                // 오른쪽 벽 (앞→뒤): 키오스크·포토부스 뒤는 비움
-  run(8,25.84,-8,25.84,6,[,P_DRINK||A_LOC,,,P_CAKE||berryPoster,]);            // 뒷벽: 화분·출입문 뒤는 비움
+  run(7.84,10,7.84,26,6,[,,POS2||A_BERRY,POS3||A_BERRY,,]);                // 오른쪽 벽 (앞→뒤): 키오스크·포토부스 뒤는 비움
+  run(8,25.84,-8,25.84,6,[,POS1||P_DRINK||A_LOC,,,P_CAKE||berryPoster,]);            // 뒷벽: 화분·출입문 뒤는 비움
   run(-8,10.16,-2.8,10.16,2,[,0]);run(2.8,10.16,8,10.16,2,[1,]); // 앞벽 (입구 양옆)
   // 상영관 양쪽 벽: 매끈한 벨벳 패널 벽 + 기둥마다 입체 벽등
   TTRIM.forEach(o=>o.visible=false);
@@ -428,7 +430,7 @@ async function loadModels(){
 
 // ---------- 치수 ----------
 const FRONT_Y=-2.8, ROWS=7, COLS=12, ROW_GAP=1.5, ROW_RISE=0.4, ROW0_Z=-6;
-const SCREEN={w:14,h:6,y:2.6,z:-18};
+const SCREEN={w:8,h:6,y:2.6,z:-18}; // 상영 영상(1440×1080, 4:3)에 맞춘 크기
 const SCREEN_CENTER=new THREE.Vector3(0,SCREEN.y,SCREEN.z);
 
 // ---------- 재질 (버건디 벨벳 · 우드 · 골드) ----------
@@ -483,7 +485,7 @@ const dotMat=new THREE.MeshBasicMaterial({color:0xffe3b8});
 for(let x=-8;x<=8;x+=2.6)for(let z=-15;z<=8;z+=3)box(.14,.02,.14,dotMat,x,7.04,z);
 
 // 스크린
-const filmCanvas=document.createElement('canvas');filmCanvas.width=1400;filmCanvas.height=600;
+const filmCanvas=document.createElement('canvas');filmCanvas.width=800;filmCanvas.height=600;
 const fx=filmCanvas.getContext('2d');
 const filmTex=new THREE.CanvasTexture(filmCanvas);filmTex.encoding=THREE.sRGBEncoding;
 const screenMat=new THREE.MeshBasicMaterial({map:filmTex,toneMapped:false});
@@ -492,7 +494,7 @@ screenMesh.position.copy(SCREEN_CENTER);screenMesh.position.z+=.9;scene.add(scre
 box(SCREEN.w+.5,SCREEN.h+.5,.1,new THREE.MeshBasicMaterial({color:0x000000}),0,SCREEN.y,SCREEN.z+.84);
 box(SCREEN.w+.8,.12,.14,gold,0,SCREEN.y+SCREEN.h/2+.3,SCREEN.z+.9);box(SCREEN.w+.8,.12,.14,gold,0,SCREEN.y-SCREEN.h/2-.3,SCREEN.z+.9);
 // 커튼 (주름 + 금색 술)
-for(const s of[-1,1]){for(let k=0;k<7;k++){const c=mesh(new THREE.CylinderGeometry(.22,.22,9,12),curtainMat,s*(7.5+k*.36),2.1,SCREEN.z+1.15+(k%2)*.12);c.scale.z=.6;}
+for(const s of[-1,1]){for(let k=0;k<15;k++){const c=mesh(new THREE.CylinderGeometry(.22,.22,9,12),curtainMat,s*(SCREEN.w/2+.62+k*.36),2.1,SCREEN.z+1.15+(k%2)*.12);c.scale.z=.6;}
   box(2.6,.12,.5,gold,s*8.6,FRONT_Y+.06+.1,SCREEN.z+1.2);}
 box(18.5,1.2,.45,curtainMat,0,6.4,SCREEN.z+1.35);box(18.5,.1,.5,gold,0,5.78,SCREEN.z+1.35);
 box(16,.45,1.5,woodPanel(16),0,FRONT_Y+.22,SCREEN.z+1.6);box(16,.06,.06,gold,0,FRONT_Y+.46,SCREEN.z+2.33);
@@ -695,7 +697,7 @@ function drawFall(c,W,H,s,alpha){
   c.globalAlpha=1;
 }
 function drawFilm(now){
-  const W=1400,H=600,c=fx,F="'Noto Sans KR',sans-serif";
+  const W=800,H=600,c=fx,F="'Noto Sans KR',sans-serif";
   c.textAlign='center';c.textBaseline='middle';
   if(filmMode==='idle'){
     const g=c.createLinearGradient(0,0,W,H);g.addColorStop(0,'#2a1020');g.addColorStop(1,'#0e0810');c.fillStyle=g;c.fillRect(0,0,W,H);
@@ -1094,13 +1096,13 @@ function animAvatar(A,dt,now,o){
       else{poseBone(A,s+'UpLeg',AX,-sw*.72*w);const kn=Math.max(0,Math.cos(ph))*1.05*w;R.kn[i]+=(kn-R.kn[i])*Math.min(1,dt*18);poseBone(A,s+'Leg',AX,R.kn[i]);poseBone(A,s+'Foot',AX,-R.kn[i]*.35);}
       const ar=A.arms[i].rotation.x,up=ar<-1.6,hold=!up&&ar<-.6,e=R.B[s+'Arm'];
       let ax=up?-1.6:hold?ar*.9:sw*.6*w,dn0=up?-.75+(ar+2.7)*.7:hold?.35:0,fo=up?-.4:(!up&&!hold)?-Math.max(0,sw)*.5*w:0;
-      const P=o.pose&&o.pose[i];R.ps=R.ps||[[0,0,0],[0,0,0]];const q=R.ps[i];
-      if(P){const kk=Math.min(1,dt*9);q[0]+=(P[0]-q[0])*kk;q[1]+=(P[1]-q[1])*kk;q[2]+=(P[2]-q[2])*kk;ax=q[0];dn0=q[1]+(P[3]?Math.sin(now/1000*8)*P[3]:0);fo=q[2];}else{q[0]=ax;q[1]=dn0;q[2]=fo;}
+      const P=(o.pose&&o.pose[i])||(up?UPP:null);R.ps=R.ps||[[0,0,0],[0,0,0]];const q=R.ps[i];
+      if(P){const kk=Math.min(1,dt*9);q[0]+=(P[0]-q[0])*kk;q[1]+=(P[1]-q[1])*kk;q[2]+=(P[2]-q[2])*kk;ax=q[0];dn0=q[1];fo=q[2];}else{q[0]=ax;q[1]=dn0;q[2]=fo;}
       const sg=i===0?1:-1,shf=P?(P[4]===undefined?.35:P[4]):up?.45:0,es=R.B[s+'Shoulder'];
       if(es){_bq.setFromAxisAngle(AZ,dn0*shf*sg);es.b.quaternion.copy(es.rest).multiply(_bi.copy(es.wr).invert()).multiply(_bq).multiply(es.wr);}
       const dn=dn0*(1-shf)*sg;
       if(e){_bq.setFromAxisAngle(AX,ax).multiply(_bz.setFromAxisAngle(AZ,dn));e.b.quaternion.copy(e.rest).multiply(_bi.copy(e.wr).invert()).multiply(_bq).multiply(e.wr);}
-      {const ef=R.B[s+'ForeArm'];if(ef){_bq.setFromAxisAngle(AX,fo).multiply(_bz.setFromAxisAngle(AZ,(P&&P[5]||0)*sg));ef.b.quaternion.copy(ef.rest).multiply(_bi.copy(ef.wr).invert()).multiply(_bq).multiply(ef.wr);}}});
+      {const ef=R.B[s+'ForeArm'];if(ef){_bq.setFromAxisAngle(AX,fo).multiply(_bz.setFromAxisAngle(AZ,(P?(P[5]||0)+(P[3]?Math.sin(now/1000*9)*P[3]:0):0)*sg));ef.b.quaternion.copy(ef.rest).multiply(_bi.copy(ef.wr).invert()).multiply(_bq).multiply(ef.wr);}}});
     R.w.position.y+=((o.seated?.1:0)-R.w.position.y)*k;R.w.position.z+=((o.seated?.07:0)-R.w.position.z)*k;
   }
   A.shadow.visible=!o.seated;
@@ -1812,7 +1814,8 @@ function beginBooth(){
   act.restoreBerry=me.items.berry.visible;setDoll(me,prop);
   show('panel',true);applyPose(pose);draw();hint('픽과 소품을 고르고 촬영해 보세요');
 }
-const POSES={v:[[-1.75,-.8,-.25,0,.45],[-1.75,-.8,-.25,0,.45]],w:[[0,.18,0,0,0],[-1.5,-.7,-.6,.2,.45]],n:[[0,.18,0,0,0],[0,.18,0,0,0]],c:[[-1.25,-.45,-1.3,0,.2],[-1.25,-.45,-1.3,0,.2]]};
+const POSES={v:[[-.9,-.75,-1.5,0,.3,-.9],[-.9,-.75,-1.5,0,.3,-.9]],w:[[0,.18,0,0,0],[-1.0,-.6,-1.4,.3,.3,-.7]],n:[[0,.18,0,0,0],[0,.18,0,0,0]],c:[[-1.25,-.45,-1.3,0,.2],[-1.25,-.45,-1.3,0,.2]]};
+const UPP=[-.95,-.7,-1.45,.28,.3,-.8]; // 평소 손 흔들기·환호: 어깨는 조금만, 팔꿈치를 굽혀 손을 얼굴 옆으로
 const FACE={img:null,zoom:1.25,ox:0,oy:0,cv:null,tex:null,mesh:null};
 function drawFace(){if(!FACE.cv){FACE.cv=document.createElement('canvas');FACE.cv.width=FACE.cv.height=384;FACE.tex=new THREE.CanvasTexture(FACE.cv);FACE.tex.encoding=THREE.sRGBEncoding;}
   const c=FACE.cv,x=c.getContext('2d'),N=c.width,im=FACE.img;x.globalCompositeOperation='source-over';x.clearRect(0,0,N,N);if(!im)return;
@@ -2054,6 +2057,11 @@ $('underBtn').onclick=()=>{
       toast('어? 의자 밑에 딸기가 숨어 있어요! 눌러서 주워보세요 🍓');return;}}
   toast('의자 밑에는 아무것도 없네요');
 };
+function useVideo(src){if(video){video.pause();}video=document.createElement('video');video.src=src;video.loop=false;video.playsInline=true;video.preload='auto';video.crossOrigin='anonymous';
+  video.addEventListener('ended',()=>{screenMat.map=filmTex;filmMode='end';screenMat.needsUpdate=true;onFilmEnd();});
+  video.addEventListener('error',()=>{video=null;videoTex=null;});
+  videoTex=new THREE.VideoTexture(video);videoTex.encoding=THREE.sRGBEncoding;}
+try{useVideo('assets/video/film.mp4');}catch(e){console.warn('video',e);}
 function startFilm(){
   finaleClear();paused=false;
   if(video){screenMat.map=videoTex;try{video.currentTime=0;}catch(e){}video.play().catch(()=>{video.muted=true;video.play().catch(()=>{});});}
