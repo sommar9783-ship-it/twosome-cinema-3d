@@ -158,7 +158,7 @@ const F="'Noto Sans KR',sans-serif";
 const posterMeshes=[], COLLIDERS=[], PROPS=[];
 
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+let PR=Math.min(devicePixelRatio,1.5),prAcc=0,prN=0;renderer.setPixelRatio(PR);
 renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.84;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.shadowMap.autoUpdate=false;renderer.physicallyCorrectLights=false;
 const scene=new THREE.Scene();
@@ -1033,7 +1033,8 @@ function useChar(A){if(!CHAR_SRC||A.rig)return;const keep=new Set();[A.items.ber
   const hold=(bone,obj,pos)=>{const e=B[bone];if(!e)return;const h=new THREE.Group();h.scale.setScalar(1/e.ws);h.quaternion.copy(e.wr).invert();e.b.add(h);h.add(obj);obj.position.copy(pos).sub(e.wp);};
   if(B.RightHand)hold('RightHand',A.hands[0],B.RightHand.wp.clone().add(V(0,-.05,.07)));
   if(B.LeftHand)hold('LeftHand',A.hands[1],B.LeftHand.wp.clone().add(V(0,-.05,.07)));
-  hold('Head',A.topper,V(.07,1.13,.03)); // 딸기 모자 꼭대기 근처에 꽂힘
+  hold('Head',A.topper,V(.07,1.13,.03));
+  A.faceAnchor=new THREE.Group();hold('Head',A.faceAnchor,V(0,.66,-.058)); // 딸기 모자 꼭대기 근처에 꽂힘
 }
 // 옷 색 바꾸기: 목 아래(높이 0.6m 미만)의 빨간 천만 골라 다른 색으로 물들임 → 딸기 모자·피부·흰 체크는 그대로
 const TINTS=[null,0x3b82e6,0xf4c531,0xff8fba,0x4caf5c],_tm={};
@@ -1077,9 +1078,12 @@ function animAvatar(A,dt,now,o){
       if(o.seated){poseBone(A,s+'UpLeg',AX,-1.5);poseBone(A,s+'Leg',AX,1.45);poseBone(A,s+'Foot',AX,0);}
       else{poseBone(A,s+'UpLeg',AX,-sw*.72*w);const kn=Math.max(0,Math.cos(ph))*1.05*w;R.kn[i]+=(kn-R.kn[i])*Math.min(1,dt*18);poseBone(A,s+'Leg',AX,R.kn[i]);poseBone(A,s+'Foot',AX,-R.kn[i]*.35);}
       const ar=A.arms[i].rotation.x,up=ar<-1.6,hold=!up&&ar<-.6,e=R.B[s+'Arm'];
-      const ax=up?-.4:hold?ar*.9:sw*.6*w,dn=(up?-1.95+(ar+2.7):hold?.35:0)*(i===0?1:-1);
+      let ax=up?-.4:hold?ar*.9:sw*.6*w,dn0=up?-1.95+(ar+2.7):hold?.35:0,fo=(!up&&!hold)?-Math.max(0,sw)*.5*w:0;
+      const P=o.pose&&o.pose[i];R.ps=R.ps||[[0,0,0],[0,0,0]];const q=R.ps[i];
+      if(P){const kk=Math.min(1,dt*9);q[0]+=(P[0]-q[0])*kk;q[1]+=(P[1]-q[1])*kk;q[2]+=(P[2]-q[2])*kk;ax=q[0];dn0=q[1]+(P[3]?Math.sin(now/1000*8)*P[3]:0);fo=q[2];}else{q[0]=ax;q[1]=dn0;q[2]=fo;}
+      const dn=dn0*(i===0?1:-1);
       if(e){_bq.setFromAxisAngle(AX,ax).multiply(_bz.setFromAxisAngle(AZ,dn));e.b.quaternion.copy(e.rest).multiply(_bi.copy(e.wr).invert()).multiply(_bq).multiply(e.wr);}
-      poseBone(A,s+'ForeArm',AX,(!up&&!hold)?-Math.max(0,sw)*.5*w:0);});
+      poseBone(A,s+'ForeArm',AX,fo);});
     R.w.position.y+=((o.seated?.1:0)-R.w.position.y)*k;R.w.position.z+=((o.seated?.07:0)-R.w.position.z)*k;
   }
   A.shadow.visible=!o.seated;
@@ -1555,7 +1559,7 @@ function walkable(x,z,bot){
   if(bot)return false;
   if(z>9.65)return Math.abs(x)<1.15&&doorOpen>.55;
   if(Math.abs(x)>9.4||z<-16.2)return false;
-  if(z>SEAT_Z0-.3&&z<SEAT_Z1+.3){const ax=Math.abs(x);if(ax>.6&&ax<5.75)return false;}
+  if(z>SEAT_Z0-.3&&z<SEAT_Z1+.3){const ax=Math.abs(x);if(ax>.6&&ax<5.75){const q=((z-ROW0_Z)%ROW_GAP+ROW_GAP)%ROW_GAP;if(q<.76||q>1.08)return false;}}
   return true;
 }
 function floorY(z){if(z>=LAND_Z)return 0;for(let i=ROWS-1;i>=0;i--)if(z>=rowZ(i)-ROW_GAP/2)return rowY(i);return FRONT_Y;}
@@ -1564,6 +1568,7 @@ function toLandingKeys(forSit){
   const p=me.root.position, keys=[], ax=Math.abs(p.x);
   if(p.z<LAND_Z){
     if(ax<.6){if(forSit)return keys;}
+    else if(p.z>=SEAT_Z0-.3&&ax<5.75){const r=Math.max(0,Math.min(ROWS-1,Math.round((p.z+.6-ROW0_Z)/ROW_GAP))),lz=rowZ(r)-.6;keys.push({to:V(p.x,rowY(r),lz)},{to:V(0,rowY(r),lz)});}
     else if(p.z<SEAT_Z0-.2&&ax<5.75){const sx=Math.sign(p.x)*7.4;keys.push({to:V(sx,FRONT_Y,p.z)},{to:V(sx,0,LANDING.z)});}
     else keys.push({to:V(p.x,0,LANDING.z)});
   }
@@ -1671,7 +1676,7 @@ function endInteract(force){
   if(!force){if(act.type==='claw'&&(claw.busy||act.reward))return;if(act.type==='mole'&&act.phase==='play')return;}
   const t=act.type;
   if(t==='ticket'&&act.pr.K)drawKiosk(act.pr.K,'home');
-  if(t==='booth'){show('panel',false);meSt.armOv=[null,null];meSt.wave=0;setDoll(me,null);if(act.restoreBerry)me.items.berry.visible=true;travel([{to:V(5.65,0,23.1),follow:true}],()=>{act=null;meSt.armOv=[null,null];backToFree();});act.type='leaving';return;}
+  if(t==='booth'){show('panel',false);meSt.armOv=[null,null];meSt.wave=0;meSt.pose=null;setDoll(me,null);if(act.restoreBerry)me.items.berry.visible=true;travel([{to:V(5.65,0,23.1),follow:true}],()=>{act=null;meSt.armOv=[null,null];backToFree();});act.type='leaving';return;}
   document.querySelector('.dpad').classList.remove('force');
   if(t==='mole'){show('moleHud',false);moleM.moles.forEach(m=>{m.up=0;m.life=0;});drawMoleScreen(0,20,'ready');}
   act=null;meSt.armOv=[null,null];closeModal();backToFree();
@@ -1768,23 +1773,49 @@ function updateMole(dt,now){
 // ---- 포토부스 ----
 const TOPPERS=[[null,'없음'],['heart','하트 픽'],['star','별 픽'],['horse','말 토퍼'],['ribbon','리본'],['candle','초']];
 function beginBooth(){
-  meYawT=-Math.PI/2;let pose='v',prop=me.items.doll.visible?me.dollType:null;
+  meYawT=-Math.PI/2;let faceOn=!!(FACE.mesh&&FACE.mesh.visible),pose='v',prop=me.items.doll.visible?me.dollType:null;
   const draw=()=>{
     const tp=TOPPERS.map(([k,l])=>`<button class="opt${me.topperType===k?' sel':''}" data-t="${k||''}">${l}</button>`).join('');
     const props=[[null,'없음'],['cushion','딸기 쿠션'],['cake','미니 케이크 인형']].map(([k,l])=>{const has=!k||dolls.includes(k);return `<button class="opt${prop===k?' sel':''}" data-p="${k||''}" ${has?'':'disabled title="인형 뽑기에서 얻을 수 있어요"'}>${l}${has?'':' 🔒'}</button>`;}).join('');
     $('panel').innerHTML=`<h3>딸기 탈 꾸미기</h3><div class="lbl">탈에 꽂을 픽</div><div class="opts">${tp}</div>
       <div class="lbl">손에 들 소품</div><div class="opts">${props}</div><div class="note" style="margin-top:0">${dolls.length?'':'인형 뽑기에서 뽑은 인형을 들 수 있어요'}</div>
-      <div class="lbl">포즈</div><div class="opts"><button class="opt${pose==='v'?' sel':''}" data-o="v">만세</button><button class="opt${pose==='w'?' sel':''}" data-o="w">손 흔들기</button><button class="opt${pose==='n'?' sel':''}" data-o="n">차렷</button></div>
+      <div class="lbl">얼굴</div><div class="opts"><button class="opt${!faceOn?' sel':''}" data-f="0">캐릭터 얼굴</button><button class="opt${faceOn?' sel':''}" data-f="1">내 사진 넣기</button></div>
+      ${faceOn?`<div style="display:flex;gap:10px;align-items:center;margin:2px 0 8px"><canvas id="facePv" width="96" height="72" style="width:96px;height:72px;border-radius:50%;touch-action:none;cursor:grab;flex:none;border:1px solid rgba(243,215,154,.5)"></canvas>
+        <div style="flex:1;min-width:0"><label class="opt" style="display:inline-block;cursor:pointer">${FACE.img?'다른 사진':'사진 고르기'}<input id="faceFile" type="file" accept="image/*" style="display:none"></label>
+        <input id="faceZoom" type="range" min="0.6" max="3" step="0.01" value="${FACE.zoom}" style="width:100%;margin-top:6px" ${FACE.img?'':'disabled'}>
+        <div class="note" style="margin:2px 0 0">${FACE.img?'동그라미를 끌어 위치를, 슬라이더로 크기를 맞춰요':'얼굴이 정면으로 크게 나온 사진이 잘 어울려요 · 사진은 이 기기 안에서만 쓰여요'}</div></div></div>`:''}
+      <div class="lbl">포즈</div><div class="opts"><button class="opt${pose==='v'?' sel':''}" data-o="v">만세</button><button class="opt${pose==='w'?' sel':''}" data-o="w">손 흔들기</button><button class="opt${pose==='n'?' sel':''}" data-o="n">차렷</button><button class="opt${pose==='c'?' sel':''}" data-o="c">꽃받침</button></div>
       <button class="primary" id="shootBtn">📸 촬영하기</button>`;
     $('panel').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{setTopper(me,b.dataset.t||null);publishPresence(true);draw();});
     $('panel').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{prop=b.dataset.p||null;setDoll(me,prop);me.items.berry.visible=false;draw();});
     $('panel').querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{pose=b.dataset.o;applyPose(pose);draw();});
+    $('panel').querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{faceOn=b.dataset.f==='1';setFace(faceOn);draw();});faceUI($('panel'),draw);
     $('shootBtn').onclick=()=>shoot(pose);
   };
   act.restoreBerry=me.items.berry.visible;setDoll(me,prop);
   show('panel',true);applyPose(pose);draw();hint('픽과 소품을 고르고 촬영해 보세요');
 }
-function applyPose(pose){meSt.armOv=pose==='v'?[-2.7,-2.7]:pose==='w'?[null,null]:[0,0];meSt.wave=pose==='w'?99:0;}
+const POSES={v:[[-.5,-1.65,0,0],[-.5,-1.65,0,0]],w:[[0,.18,0,0],[-.5,-1.6,0,.25]],n:[[0,.18,0,0],[0,.18,0,0]],c:[[-1.25,-.45,-1.3,0],[-1.25,-.45,-1.3,0]]};
+const FACE={img:null,zoom:1.25,ox:0,oy:0,cv:null,tex:null,mesh:null};
+function drawFace(){if(!FACE.cv){FACE.cv=document.createElement('canvas');FACE.cv.width=FACE.cv.height=384;FACE.tex=new THREE.CanvasTexture(FACE.cv);FACE.tex.encoding=THREE.sRGBEncoding;}
+  const c=FACE.cv,x=c.getContext('2d'),N=c.width,im=FACE.img;x.globalCompositeOperation='source-over';x.clearRect(0,0,N,N);if(!im)return;
+  const AR=.36/.27,vw=N,vh=N;                                   // 캔버스는 정사각이지만 얼굴 판은 가로로 약간 넓음 → 가로를 덜 늘려 그림
+  const sc=Math.max(N/im.width*1,N/im.height/AR*1)*FACE.zoom,dw=im.width*sc,dh=im.height*sc*AR;
+  x.drawImage(im,(N-dw)/2+FACE.ox*N,(N-dh)/2+FACE.oy*N,dw,dh);
+  x.globalCompositeOperation='destination-in';const g=x.createRadialGradient(N/2,N/2,N*.36,N/2,N/2,N*.5);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,N,N);
+  x.globalCompositeOperation='source-over';FACE.tex.needsUpdate=true;}
+function setFace(on){const A=me;if(!A.faceAnchor)return;
+  if(!FACE.mesh){drawFace();const R=.32,a=.6,b=.435,geo=new THREE.SphereGeometry(R,28,20,Math.PI/2-a,2*a,Math.PI/2-b,2*b);
+    FACE.mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({map:FACE.tex,emissive:0xffffff,emissiveMap:FACE.tex,emissiveIntensity:.3,roughness:.85,metalness:0,transparent:true,depthWrite:false,envMapIntensity:.3}));FACE.mesh.renderOrder=3;A.faceAnchor.add(FACE.mesh);}
+  FACE.mesh.visible=!!on&&!!FACE.img;}
+function faceUI(wrap,redraw){ // 사진 고르기 + 위치·크기 맞추기
+  const inp=wrap.querySelector('#faceFile'),pv=wrap.querySelector('#facePv'),zm=wrap.querySelector('#faceZoom');
+  const paint=()=>{if(!pv)return;const x=pv.getContext('2d');x.clearRect(0,0,pv.width,pv.height);x.fillStyle='#2a0d12';x.fillRect(0,0,pv.width,pv.height);if(FACE.cv)x.drawImage(FACE.cv,0,0,pv.width,pv.height);};
+  if(inp)inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const im=new Image();im.onload=()=>{FACE.img=im;FACE.zoom=1.25;FACE.ox=FACE.oy=0;drawFace();setFace(true);URL.revokeObjectURL(im.src);redraw();};im.onerror=()=>toast('사진을 열지 못했어요. 다른 사진으로 해 보세요');im.src=URL.createObjectURL(f);};
+  if(zm)zm.oninput=()=>{FACE.zoom=+zm.value;drawFace();paint();};
+  if(pv){let d=null;pv.onpointerdown=e=>{d=[e.clientX,e.clientY,FACE.ox,FACE.oy];pv.setPointerCapture(e.pointerId);};pv.onpointermove=e=>{if(!d)return;FACE.ox=d[2]+(e.clientX-d[0])/pv.clientWidth;FACE.oy=d[3]+(e.clientY-d[1])/pv.clientHeight;drawFace();paint();};pv.onpointerup=pv.onpointercancel=()=>{d=null;};paint();}
+}
+function applyPose(pose){meSt.armOv=[null,null];meSt.wave=0;meSt.pose=POSES[pose]||null;}
 function shoot(pose){
   show('panel',false);show('backBtn',false);let n=3;const el=$('count');show('count',true);el.textContent=n;
   applyPose(pose);
@@ -1817,7 +1848,7 @@ function showPhoto(c){
   show('photoOut',true);
   const save=async(story)=>{
     if(story)$('saveNote').textContent='이 환경에서는 인스타 스토리로 바로 공유할 수 없어서, 스토리 비율(9:16) 이미지로 저장해요. 저장한 사진을 스토리에 올려주세요.';
-    if(!downloadsNs){$('saveNote').textContent+=(story?' ':'')+'저장 기능을 쓸 수 없는 환경이에요. 사진을 길게 누르거나 우클릭해 저장해 주세요.';return;}
+    if(!downloadsNs){try{const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=story?'twosome-berry-story.png':'twosome-berry-photo.png';document.body.appendChild(a);a.click();a.remove();toast('사진을 저장했어요 📸');return;}catch(e){}$('saveNote').textContent+=(story?' ':'')+'저장 기능을 쓸 수 없는 환경이에요. 사진을 길게 누르거나 우클릭해 저장해 주세요.';return;}
     c.toBlob(async b=>{try{await downloadsNs.save({filename:story?'twosome-berry-story.png':'twosome-berry-photo.png',data:b});toast('사진을 저장했어요 📸');}
       catch(e){if(e&&e.code==='declined')toast('저장을 취소했어요');else $('saveNote').textContent='저장하지 못했어요. 사진을 길게 누르거나 우클릭해 저장해 주세요.';}},'image/png');
   };
@@ -2102,7 +2133,7 @@ canvas.addEventListener('pointerdown',e=>{
   down={x:e.clientX,y:e.clientY,yaw:yawT,pitch:pitchT};if(state==='seated')canvas.setPointerCapture(e.pointerId);});
 canvas.addEventListener('pointermove',e=>{
   mouseN.x=e.clientX/innerWidth*2-1;mouseN.y=e.clientY/innerHeight*2-1;
-  if(rot){orbYaw=rot.yaw-(e.clientX-rot.x)*.006;orbPitch=Math.max(-.05,Math.min(1.15,rot.pitch+(e.clientY-rot.y)*.005));return;}
+  if(rot){orbYaw=rot.yaw-(e.clientX-rot.x)*.0078;orbPitch=Math.max(-.05,Math.min(1.15,rot.pitch+(e.clientY-rot.y)*.0062));return;}
   if(clawDrag&&claw&&!claw.busy){claw.carriage.position.x=Math.max(-.5,Math.min(.5,clawDrag.cx+(e.clientX-clawDrag.x)*.004));claw.carriage.position.z=Math.max(-.4,Math.min(.4,clawDrag.cz+(e.clientY-clawDrag.y)*.004));return;}
   if(state==='seated'&&down){yawT=Math.max(-1.1,Math.min(1.1,down.yaw+(e.clientX-down.x)*.004));pitchT=Math.max(-.7,Math.min(.6,down.pitch-(e.clientY-down.y)*.004));return;}
   if(e.pointerType==='touch')return;
@@ -2169,7 +2200,7 @@ function followCam(dt){
   if(free&&!vf){
     if(!camPiv)camPiv=V(p.x,p.y+.95,p.z);
     if(freeBlend===0){orbYS=orbYaw;orbPS=orbPitch;camPiv.set(p.x,p.y+.95,p.z);}
-    const k=1-Math.exp(-dt*18);let dy=((orbYaw-orbYS+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;orbYS+=dy*k;orbPS+=(orbPitch-orbPS)*k;
+    const k=1-Math.exp(-dt*34);let dy=((orbYaw-orbYS+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;orbYS+=dy*k;orbPS+=(orbPitch-orbPS)*k;
     camPiv.lerp(V(p.x,p.y+.95,p.z),1-Math.exp(-dt*14));
     const fx_=Math.sin(orbYS),fz=Math.cos(orbYS),cp=Math.cos(orbPS),sn=Math.sin(orbPS);
     let d=orbDist;for(;d>.7;d-=.1){if(camInside(camPiv.x-fx_*d*cp,camPiv.y+d*sn,camPiv.z-fz*d*cp,aud,p.x))break;}
@@ -2189,6 +2220,7 @@ function followCam(dt){
 // =====================================================================
 let last=performance.now(),lastHL=1,shTick=0;
 function frame(now){
+  {const raw=now-last;if(raw>0&&raw<250&&!document.hidden){prAcc+=raw;prN++;if(prN>=50){const avg=prAcc/prN;prAcc=prN=0;if(avg>24&&PR>.85){PR=Math.max(.85,PR-.2);renderer.setPixelRatio(PR);resize();}}}}
   const dt=Math.min(.05,(now-last)/1000)*(window.__fast||1);last=now; // __fast: 점검용 배속
   if(tween){tween.t+=dt/tween.dur;const tt=Math.min(1,tween.t),k=ease(tt);
     if(tween.p0)camera.position.lerpVectors(tween.p0,tween.p1,k);if(tween.p0)lookBase.lerpVectors(tween.l0,tween.l1,k);
@@ -2204,7 +2236,7 @@ function frame(now){
   // 시선
   const free=state==='seated'||(state==='interact'&&act&&act.type==='pick'&&act.seated);
   const ty=free?yawT:0, tp=free?pitchT:0;
-  if(!pickTarget){yawOff+=(ty-yawOff)*Math.min(1,dt*6);pitchOff+=(tp-pitchOff)*Math.min(1,dt*6);}
+  if(!pickTarget){yawOff+=(ty-yawOff)*Math.min(1,dt*13);pitchOff+=(tp-pitchOff)*Math.min(1,dt*13);}
   const d=lookBase.clone().sub(camera.position),r=d.length();
   const yaw=Math.atan2(d.x,-d.z)+yawOff,pit=Math.asin(d.y/r)+pitchOff;
   camera.lookAt(camera.position.x+Math.sin(yaw)*Math.cos(pit),camera.position.y+Math.sin(pit),camera.position.z-Math.cos(yaw)*Math.cos(pit));
@@ -2398,7 +2430,7 @@ const start=()=>{
   ui();renderInv();hint(LOBBY_HINT);renderMixer();
   window.hideLoading=()=>{const l=$('loading');if(!l||l._h)return;l._h=1;l.style.opacity=0;setTimeout(()=>l.remove(),700);};setTimeout(window.hideLoading,30000);requestAnimationFrame(frame);
   initRoom();initDb();THREE.DefaultLoadingManager.onLoad=queueLook;loadModels().catch(e=>{console.warn(e);window.hideLoading();});setTimeout(queueLook,3000);setTimeout(queueLook,9000);
-  window.__dbg={renderer,scene,camera,get meSt(){return meSt;},sit:i=>sit(seats[i]),get seats(){return seats;},get me(){return me;},VIEW,SLOTS,get state(){return state;},get act(){return act&&{type:act.type,phase:act.phase};},get cakes(){return cakeM;},get claw(){return claw;},get ticket(){return myTicket;}};
+  window.__dbg={startInteract,PROPS,FACE,setFace,drawFace,renderer,scene,camera,get meSt(){return meSt;},sit:i=>sit(seats[i]),get seats(){return seats;},get me(){return me;},VIEW,SLOTS,get state(){return state;},get act(){return act&&{type:act.type,phase:act.phase};},get cakes(){return cakeM;},get claw(){return claw;},get ticket(){return myTicket;}};
   (async()=>{try{if(window.claude&&window.claude.use)downloadsNs=await window.claude.use('downloads');}catch(e){}})();
 };
 (document.fonts&&document.fonts.load?Promise.race([Promise.all([document.fonts.load("900 40px 'Noto Sans KR'"),document.fonts.load("400 20px 'Noto Sans KR'"),document.fonts.load("700 40px 'Cinzel'")]),new Promise(r=>setTimeout(r,2500))]):Promise.resolve()).then(loadViews,loadViews).then(start,start);
