@@ -2188,6 +2188,8 @@ function updateWalk(dt){
   const mx=((keys.r||pad.r)?1:0)-((keys.l||pad.l)?1:0), mz=((keys.u||pad.u)?1:0)-((keys.d||pad.d)?1:0), fw=mx||mz;
   if(fw){freeCam=true;hidePick();}
   const p=me.root.position;
+  // 소품 충돌 범위 안에 서 있게 됐으면(게임을 마친 직후 등) 가장 가까운 바깥으로 밀어내 갇히지 않게 함
+  if(p.z>10.35)for(const c of COLLIDERS){if(c.off)continue;const a=p.x-(c.x0-RAD),b=(c.x1+RAD)-p.x,e=p.z-(c.z0-RAD),f=(c.z1+RAD)-p.z;if(a>0&&b>0&&e>0&&f>0){const m=Math.min(a,b,e,f),st=Math.min(m+.01,dt*3);if(m===a)p.x-=st;else if(m===b)p.x+=st;else if(m===e)p.z-=st;else p.z+=st;}}
   if(fw){const fX=Math.sin(orbYaw),fZ=Math.cos(orbYaw);let dx=fX*mz-fZ*mx,dz=fZ*mz+fX*mx;const dl=Math.hypot(dx,dz)||1;dx/=dl;dz/=dl;
     meYawT=Math.atan2(dx,dz);const sp=3.5*dt,nx=p.x+dx*sp,nz=p.z+dz*sp;
     if(walkable(nx,p.z))p.x=nx;if(walkable(p.x,nz))p.z=nz;
