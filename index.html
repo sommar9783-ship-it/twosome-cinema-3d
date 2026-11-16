@@ -364,6 +364,8 @@ const BL=['loc','claw','door','kiosk','booth','camera','mole','scanner','seat'];
 const MODEL_YAW={plant:-Math.PI/2};['kiosk','claw','booth','table','loc','door','cafe'].forEach(n=>MODEL_YAW[n]=(HY.includes(n)||BL.includes(n))?0:-Math.PI/2);
 
 function slot(name,g,shell,H,zc,onModel){(SLOTS[name]=SLOTS[name]||[]).push({g,shell,H,zc:zc||0,onModel});}
+window.MODEL_LIST=window.MODEL_LIST||['berry','char','seat','door','cafe','kiosk','claw','mole','booth','camera','cake_a','cake_b','cake_c','table','plant','scanner','loc']; // 새 모델 파일을 추가하면 여기에도 이름을 적어야 함
+const LO={};
 async function loadModels(){
   const found=[];
   if(window.MODEL_LIST){for(const n of ['berry','grab','char','seat',...Object.keys(SLOTS)])if(window.MODEL_LIST.includes(n))found.push(n);}else{
@@ -371,17 +373,18 @@ async function loadModels(){
   for(const n of Object.keys(SLOTS)){try{const r=await fetch('assets/models/'+n+'.glb',{method:'HEAD'});if(r.ok)found.push(n);}catch(e){}}
   }
   if(!found.length){window.hideLoading();return;}
-  await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
-  if(found.includes('char'))await new Promise(res=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js';s.onload=res;s.onerror=res;document.head.appendChild(s);});
+  const js=u=>new Promise(res=>{const s=document.createElement('script');s.src=u;s.onload=res;s.onerror=res;document.head.appendChild(s);});
+  await Promise.all([js('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js'),js('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js'),js('https://cdn.jsdelivr.net/npm/meshoptimizer@0.18.1/meshopt_decoder.js')]);
   // 압축 모델(meshopt) 풀기 도구 + 압축 때문에 정수로 저장된 꼭짓점을 다시 실수로 되돌림(게임이 메시를 직접 만지는 곳이 있어서)
-  await new Promise(res=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/meshoptimizer@0.18.1/meshopt_decoder.js';s.onload=res;s.onerror=res;document.head.appendChild(s);});
   window.newGLTF=()=>{const l=new THREE.GLTFLoader();if(window.MeshoptDecoder)l.setMeshoptDecoder(MeshoptDecoder);if(window.LM)l.manager=window.LM;return l;};
   window.deq=root=>{const MX={Int8Array:127,Uint8Array:255,Int16Array:32767,Uint16Array:65535};root.traverse(o=>{if(!o.isMesh)return;const g=o.geometry;for(const k in g.attributes){if(k==='skinIndex')continue;const a=g.attributes[k],src=a.isInterleavedBufferAttribute?a.data.array:a.array;
     if(src instanceof Float32Array&&!a.isInterleavedBufferAttribute)continue;const n=a.itemSize,f=new Float32Array(a.count*n),d=a.normalized?(MX[src.constructor.name]||1):1,fn=['getX','getY','getZ','getW'];
     for(let i=0;i<a.count;i++)for(let j=0;j<n;j++)f[i*n+j]=Math.max(-1e9,a[fn[j]](i)/d);g.setAttribute(k,new THREE.BufferAttribute(f,n));}g.boundingBox=null;g.boundingSphere=null;});};
   const L=window.newGLTF(),LM=new THREE.LoadingManager(),lp=document.getElementById('loadPct');L.manager=LM;window.LM=LM;
   LM.onProgress=(u,a,b)=>{if(lp)lp.textContent=Math.min(99,Math.round(a/b*100))+'%';};
-  LM.onLoad=()=>{if(lp)lp.textContent='100%';try{queueLook();}catch(e){}setTimeout(window.hideLoading,900);};
+  LM.onLoad=()=>{window.__modelsDone=1;if(lp)lp.textContent='100%';try{queueLook();}catch(e){}setTimeout(window.hideLoading,900);};
+  await Promise.all(['char_lo','berry_lo'].map(n=>new Promise(res=>L.load('assets/models/'+n+'.glb',gl=>{window.deq(gl.scene);gl.scene.traverse(o=>{if(o.isMesh&&o.material&&o.material.isMeshStandardMaterial){const m=o.material;m.normalMap=null;m.roughnessMap=null;m.metalnessMap=null;
+      if(n==='char_lo'){m.roughness=.82;m.metalness=0;m.envMapIntensity=.35;if(m.map){m.emissive.setHex(0xffffff);m.emissiveMap=m.map;m.emissiveIntensity=.3;}}else{m.roughness=.6;m.metalness=.06;m.envMapIntensity=.55;}m.needsUpdate=true;}});LO[n]=gl.scene;res();},undefined,()=>res()))));
   for(const n of found)L.load('assets/models/'+n+'.glb',gl=>{window.deq(gl.scene);
     // 표면이 쭈글쭈글해 보이지 않게: 잔주름을 만드는 노멀맵 세기를 낮추고, 얼룩덜룩한 반사를 줄임
     gl.scene.traverse(o=>{if(o.isMesh&&o.material&&o.material.isMeshStandardMaterial){const m=o.material;m.envMapIntensity=.55;
@@ -389,6 +392,7 @@ async function loadModels(){
         const pb=BL_PBR[m.name];if(pb){if(pb[0]!==null)m.color.setHex(pb[0]);m.metalness=pb[1];m.roughness=pb[2];m.envMapIntensity=pb[3];}}
       else if(n!=='char'){m.normalMap=null;m.roughnessMap=null;m.metalnessMap=null;m.roughness=.6;m.metalness=.06;const it=HY.includes(n)?0:SMOOTH[n]!==undefined?SMOOTH[n]:SMOOTH._;if(it>0)try{smoothGeo(o.geometry,it);}catch(e){console.warn('smooth',n,e);}}
       else{m.normalMap=null;m.roughnessMap=null;m.metalnessMap=null;m.roughness=.82;m.metalness=0;m.envMapIntensity=.35;if(m.map){m.emissive.setHex(0xffffff);m.emissiveMap=m.map;m.emissiveIntensity=.3;}}m.needsUpdate=true;}});
+    if(n==='berry'&&LO.berry_lo){const h=gl.scene,b0=new THREE.Box3().setFromObject(h),s0=b0.getSize(new THREE.Vector3()),c0=b0.getCenter(new THREE.Vector3());h.position.set(-c0.x,-c0.y,-c0.z);BERRY_HI=new THREE.Group();BERRY_HI.add(h);BERRY_HI.scale.setScalar(.15/s0.y);gl={scene:LO.berry_lo};}
     if(n==='berry'){const m=gl.scene,b=new THREE.Box3().setFromObject(m),sz=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());
       m.position.set(-c.x,-c.y,-c.z);const w=new THREE.Group();w.add(m);w.scale.setScalar(.15/sz.y);BERRY_GLB=w;
       const all=[];scene.traverse(o=>{if(o.userData.berry)all.push(o);});all.forEach(useBerry);
@@ -847,9 +851,18 @@ function animStaff(dt,now){const S=STAFF;if(!S)return;S.t+=dt;const wp=S.pv.getW
   let bow=0;if(S.bow>0){S.bow-=dt;const u=1-S.bow/1.5;bow=Math.sin(Math.min(1,u*1.15)*Math.PI);bow=bow*bow;}
   const ty=near?Math.max(-.4,Math.min(.4,Math.atan2(dx,dz))):Math.sin(S.t*.35)*.2;S.pv.rotation.y+=(ty-S.pv.rotation.y)*Math.min(1,dt*3);
   S.pv.rotation.x=bow*.11+Math.sin(S.t*1.7)*.01;S.pv.rotation.z=Math.sin(S.t*1.1)*.03+(bow>0?Math.sin(S.t*9)*.0:0);S.pv.position.y=1.16+Math.sin(S.t*1.7)*.006+bow*-.02;}
-let BERRY_GLB=null;
+let BERRY_GLB=null,BERRY_HI=null;
 let lookTimer=0,envRT=null;
+let ZT=null,ZL=null;
+function buildZones(){if(ZT)return;ZT=new THREE.Group();ZL=new THREE.Group();ZT.userData.zone=ZL.userData.zone=1;const bb=new THREE.Box3();
+  const rm=scene.remove.bind(scene);scene.remove=function(...a){a.forEach(o=>{if(o&&o.parent&&o.parent.userData.zone)o.parent.remove(o);else rm(o);});return scene;};
+  scene.children.slice().forEach(o=>{if(o.isLight||o.isCamera||o===me.root||o.userData.noZone)return;let lit=false;o.traverse(c=>{if(c.isLight)lit=true;});if(lit)return;
+    o.updateMatrixWorld(true);bb.makeEmpty();bb.expandByObject(o);if(bb.isEmpty())return;if(bb.max.z<9.6)ZT.add(o);else if(bb.min.z>10.3)ZL.add(o);});
+  scene.add(ZT,ZL);}
+function updateZones(){if(!ZT)return;const pz=me.root.position.z,cz=camera.position.z;const t=pz<13.2||cz<10.6||doorOpen>.02,l=pz>8.2||cz>9.4;
+  if(ZT.visible!==t||ZL.visible!==l){ZT.visible=t;ZL.visible=l;renderer.shadowMap.needsUpdate=true;}}
 function finishLook(){
+  if(ZT){ZT.visible=ZL.visible=true;}
   const big=new THREE.Vector3(),bb=new THREE.Box3();
   scene.traverse(o=>{if(!o.isMesh)return;const ms=Array.isArray(o.material)?o.material:[o.material];const m0=ms[0];if(!m0)return;
     const lit=m0.isMeshStandardMaterial;if(lit)o.receiveShadow=true;
@@ -869,12 +882,14 @@ function finishLook(){
     cards.forEach(m=>{scene.remove(m);m.geometry.dispose();m.material.dispose();});hid.forEach(r=>r.visible=true);
     const pm=new THREE.PMREMGenerator(renderer),tex=pm.fromCubemap(envRT.texture).texture;pm.dispose();if(tex)scene.environment=tex;
   }catch(e){console.warn('env',e);}
+  if(window.__modelsDone)try{buildZones();}catch(e){console.warn('zones',e);}
 }
 function queueLook(){clearTimeout(lookTimer);lookTimer=setTimeout(finishLook,500);}
 // 인형뽑기 안의 인형을 실제 모델로: '쿠션' → 통통한 딸기, '케이크' → 미니 캐릭터 인형. (판정용 위치·종류는 그대로)
 // 인형 모델 하나 만들기: 가운데가 원점, 높이 h. '케이크' 종류 = 미니 캐릭터 인형, 그 밖 = 통통한 딸기
 function prizeModel(type,h){const g=new THREE.Group();
-  if(type==='cake'){if(!CHAR_SRC||!THREE.SkeletonUtils)return null;const c=THREE.SkeletonUtils.clone(CHAR_SRC);c.traverse(o=>{if(o.isSkinnedMesh)o.frustumCulled=false;});const k=h/1.2;c.scale.multiplyScalar(k);c.position.y=-h/2;g.add(c);}
+  if(type==='cake'){if(!CHAR_SRC)return null;if(!prizeModel.g){let sm=null;(LO.char_lo||CHAR_SRC).traverse(o=>{if(o.isSkinnedMesh&&!sm)sm=o;});if(!sm)return null;const mt=sm.material.clone();mt.skinning=false;prizeModel.g=[sm.geometry,mt];}
+    const c=new THREE.Mesh(prizeModel.g[0],prizeModel.g[1]);const k=h/1.2;c.scale.setScalar(k);c.position.y=-h/2;g.add(c);}
   else{if(!BERRY_GLB)return null;const k=BERRY_GLB.clone(true);g.add(k);g.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(k),sz=b.getSize(new THREE.Vector3()),ct=b.getCenter(new THREE.Vector3()),f=h/Math.max(sz.y,.001);k.scale.multiplyScalar(f);k.position.sub(ct.multiplyScalar(f));}
   g.userData.h=h;return g;}
 function upgradePrizes(){if(!claw||!BERRY_GLB)return;claw.prizes.forEach((p,i)=>{if(p.userData.up)return;const isC=p.userData.type==='cake';const h=isC?.34:.21;const k=prizeModel(p.userData.type,h);if(!k)return;
@@ -886,8 +901,8 @@ function upgradePrizes(){if(!claw||!BERRY_GLB)return;claw.prizes.forEach((p,i)=>
     if(isC){const lay=Math.random();p.rotation.set(lay<.4?-Math.PI/2+(Math.random()-.5)*.4:lay<.7?Math.PI/2+(Math.random()-.5)*.4:(Math.random()-.5)*.9,Math.random()*6.28,(Math.random()-.5)*.8);
       p.position.y=1.035+(lay<.7?.1:.17)+layer*.17;}
     else{p.rotation.set(Math.random()*6.28,Math.random()*6.28,Math.random()*6.28);p.position.y=1.035+.1+layer*.16;}});}
-function useBerry(g){if(!BERRY_GLB||g.userData.berryDone)return;g.userData.berryDone=1;
-  g.children.forEach(c=>{if(c.isMesh&&(c.geometry===BERRY_BODY||c.geometry===BERRY_LEAF||c.geometry===BERRY_STEM))c.visible=false;});g.add(BERRY_GLB.clone(true));}
+function useBerry(g,hi){if(!BERRY_GLB||g.userData.berryDone)return;g.userData.berryDone=1;
+  g.children.forEach(c=>{if(c.isMesh&&(c.geometry===BERRY_BODY||c.geometry===BERRY_LEAF||c.geometry===BERRY_STEM))c.visible=false;});g.add(((hi&&BERRY_HI)||BERRY_GLB).clone(true));}
 function makeCup(d){
   const g=new THREE.Group();
   const cup=new THREE.Mesh(new THREE.CylinderGeometry(.052,.04,.15,16,1,true),new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:.35,roughness:.1,side:THREE.DoubleSide,depthWrite:false}));g.add(cup);
@@ -1014,7 +1029,7 @@ function makeAvatar(o={}){
   const tk=new THREE.Mesh(new THREE.PlaneGeometry(.16,.08),ticketMat);tk.position.set(0,0,.06);tk.rotation.set(-.4,0,Math.PI/2);tk.visible=false;hands[0].add(tk);
   const A={root,body,legs,arms,hands,head,leaves,topper,shadow,shirt:dress,phase:Math.random()*6,seed:Math.random()*9,
     items:{berry,drink,doll,ticket:tk},drinkKind:-1,dollType:null,topperType:null};
-  AVATARS.push(A);useChar(A);return A;
+  A.lite=!!o.lite;AVATARS.push(A);useChar(A);return A;
 }
 // char.glb 가 있으면 모든 캐릭터의 몸을 그 모델로 바꿈 (통짜 인형이라 팔다리는 따로 안 움직이고, 걸을 때 뒤뚱뒤뚱 흔들림).
 // 손에 드는 것(딸기·음료·인형·티켓)과 머리 픽은 기존 위치에 그대로 붙음
@@ -1023,9 +1038,9 @@ const AVATARS=[];let CHAR_SRC=null,CHAR_K=1,CHAR_CLIP=null;
 const _bq=new THREE.Quaternion(),_bi=new THREE.Quaternion(),_bz=new THREE.Quaternion(),AX=new THREE.Vector3(1,0,0),AZ=new THREE.Vector3(0,0,1);
 function useChar(A){if(!CHAR_SRC||A.rig)return;const keep=new Set();[A.items.berry,A.items.drink,A.items.doll,A.items.ticket,A.topper].forEach(k=>k.traverse(o=>keep.add(o)));
   A.body.traverse(o=>{if(o.isMesh&&!keep.has(o))o.visible=false;});
-  const m=THREE.SkeletonUtils.clone(CHAR_SRC);m.updateMatrixWorld(true);const B={};
+  const m=THREE.SkeletonUtils.clone((A.lite&&LO.char_lo)||CHAR_SRC);m.updateMatrixWorld(true);const B={};
   const ti=AVATARS.indexOf(A)%TINTS.length; // 내 캐릭터(첫 번째)는 빨강, 나머지는 파랑·노랑·핑크·초록이 번갈아
-  m.traverse(o=>{if(o.isSkinnedMesh){o.frustumCulled=false;o.material=tintMat(o.material,ti);}
+  m.traverse(o=>{if(o.isSkinnedMesh){if(!o.geometry.userData.bs){o.geometry.userData.bs=1;const iv=new THREE.Matrix4().copy(o.matrixWorld).invert();o.geometry.boundingSphere=new THREE.Sphere(new THREE.Vector3(0,.65,0).applyMatrix4(iv),1.25/o.getWorldScale(new THREE.Vector3()).x);}o.frustumCulled=true;o.material=tintMat(o.material,ti);}
     if(o.isBone)B[o.name]={b:o,rest:o.quaternion.clone(),wr:o.getWorldQuaternion(new THREE.Quaternion()),wp:o.getWorldPosition(new THREE.Vector3()),ws:o.getWorldScale(new THREE.Vector3()).x};});
   const w=new THREE.Group();w.add(m);w.scale.setScalar(CHAR_K);A.body.add(w);A.rig={w,B,kn:[0,0],ww:0};
   if(CHAR_CLIP){const mx=new THREE.AnimationMixer(m),act=mx.clipAction(CHAR_CLIP);act.play();act.time=Math.random()*CHAR_CLIP.duration;act.setEffectiveWeight(0);A.rig.mixer=mx;A.rig.act=act;}
@@ -1608,7 +1623,7 @@ for(let i=0;i<5;i++){const A=makeAvatar({shirt:SHIRTS[(i*3+2)%SHIRTS.length],pan
   if(i%2===0)setDrink(A,i%3);if(i%3===1)A.items.berry.visible=true;
   bots.push({A,target:WAYS[(i*5+1)%WAYS.length],wait:Math.random()*2,yaw:0,st:{walking:false,seated:false,cheer:0,wave:0}});}
 function updateBots(dt,now){
-  for(const b of bots){const p=b.A.root.position;
+  if(!ZL||ZL.visible)for(const b of bots){const p=b.A.root.position;
     if(b.wait>0){b.wait-=dt;b.st.walking=false;}
     else{const dx=b.target[0]-p.x,dz=b.target[1]-p.z,d=Math.hypot(dx,dz);
       if(d<.2){b.wait=1.5+Math.random()*3.5;b.target=WAYS[Math.floor(Math.random()*WAYS.length)];}
@@ -1616,7 +1631,7 @@ function updateBots(dt,now){
         if(walkable(nx,nz,true)){p.x=nx;p.z=nz;b.st.walking=true;b.yaw=Math.atan2(dx,dz);}else{b.target=WAYS[Math.floor(Math.random()*WAYS.length)];b.wait=.3;}}}
     let dy=((b.yaw-b.A.root.rotation.y+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;b.A.root.rotation.y+=dy*Math.min(1,dt*6);
     animAvatar(b.A,dt,now,b.st);}
-  for(const n of npcSeated){if(n.st.wave>0)n.st.wave-=dt;animAvatar(n.A,dt,now,n.st);}
+  if(!ZT||ZT.visible)for(const n of npcSeated){if(n.st.wave>0)n.st.wave-=dt;animAvatar(n.A,dt,now,n.st);}
 }
 
 // =====================================================================
@@ -2056,7 +2071,7 @@ $('file').onchange=e=>{
 let finale=null;
 function onFilmEnd(){
   houseT=1;hint('상영이 끝났어요 · 커튼 아래에서 굴러 나온 딸기를 눌러보세요 🍓');
-  const m=makeSmallBerry(5.5);m.userData.berry=true;useBerry(m);scene.add(m);
+  const m=makeSmallBerry(5.5);m.userData.berry=true;useBerry(m,true);scene.add(m);
   const fl=new THREE.PointLight(0xffb0b8,1.2,6);fl.position.set(0,.6,0);m.add(fl);
   const ring=new THREE.Mesh(new THREE.RingGeometry(.5,.62,48),new THREE.MeshBasicMaterial({color:0xffcf7a,transparent:true,opacity:0,toneMapped:false,depthWrite:false}));ring.rotation.x=-Math.PI/2;scene.add(ring);
   finale={m,ring,t:0,from:V(-7.2,FRONT_Y+.36,SCREEN.z+1.7),to:V(0,FRONT_Y+.36,SCREEN.z+3.3)};
@@ -2228,7 +2243,7 @@ function frame(now){
     if(tween.t>=1){const d=tween.done;tween=null;d&&d();}}
   updateWalk(dt);
   if((freeCam&&(state==='lobby'||state==='choosing'))||camFollow)followCam(dt);
-  updateClaw(dt,now);updateMole(dt,now);updateInteract(dt,now);updateHidden(dt,now);updateBots(dt,now);updatePeers(dt,now);updateFinale(dt,now);
+  updateClaw(dt,now);updateMole(dt,now);updateInteract(dt,now);updateHidden(dt,now);updateBots(dt,now);updatePeers(dt,now);updateFinale(dt,now);updateZones();
   if(cafeM)animAvatar(cafeM.bar,dt,now,cafeM.bar.st||{walking:false,seated:false,cheer:0,wave:0});
   // 내 캐릭터
   let dy=((meYawT-meYaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;meYaw+=dy*Math.min(1,dt*8);me.root.rotation.y=meYaw;
