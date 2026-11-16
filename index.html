@@ -125,6 +125,8 @@
     <button class="btn ghost hidden" id="viewBtn">👀 내 캐릭터 보기</button>
     <button class="btn hidden" id="enterBtn">상영관 입장</button>
     <button class="btn ghost hidden" id="cupBtn">컵홀더에 놓기</button>
+    <button class="btn ghost hidden" id="sipBtn">🥤 음료 마시기</button>
+    <button class="btn ghost hidden" id="camBtn">🎥 카메라: 수동</button>
     <button class="btn ghost hidden" id="underBtn">의자 밑 살펴보기</button>
     <button class="btn ghost hidden" id="waveBtn">👋 손 흔들기</button>
     <label class="btn ghost hidden" id="loadBtn" for="file">캠페인 영상 세팅</label>
@@ -430,7 +432,7 @@ async function loadModels(){
 
 // ---------- 치수 ----------
 const FRONT_Y=-2.8, ROWS=7, COLS=12, ROW_GAP=1.5, ROW_RISE=0.4, ROW0_Z=-6;
-const SCREEN={w:8,h:6,y:2.6,z:-18}; // 상영 영상(1440×1080, 4:3)에 맞춘 크기
+const SCREEN={w:9.6,h:7.2,y:2.0,z:-18}; // 상영 영상(1440×1080, 4:3)에 맞춘 크기
 const SCREEN_CENTER=new THREE.Vector3(0,SCREEN.y,SCREEN.z);
 
 // ---------- 재질 (버건디 벨벳 · 우드 · 골드) ----------
@@ -722,6 +724,7 @@ function drawFilm(now){
     for(let i=0;i<40;i++){c.fillStyle=`rgba(80,0,20,${Math.random()*.3})`;c.fillRect(Math.random()*W,Math.random()*H,Math.random()*3,Math.random()*30);}
     return;
   }
+  if(videoPending&&video){videoPending=false;screenMat.map=videoTex;screenMat.needsUpdate=true;video.muted=false;video.play().catch(()=>{video.muted=true;video.play().catch(()=>{});});return;}
   const s=t-5, hue=345+Math.sin(s*.15)*12;
   if(s>FILM_LEN&&filmMode==='film'){filmMode='end';onFilmEnd();return;}
   const g=c.createLinearGradient(0,0,0,H);g.addColorStop(0,`hsl(${hue},100%,91%)`);g.addColorStop(1,`hsl(${hue},95%,76%)`);c.fillStyle=g;c.fillRect(0,0,W,H);
@@ -1177,7 +1180,7 @@ function buildProps(){
     if(WALL)mb.visible=mbf.visible=cs.visible=false; // 벽지 액자 안의 세로 메뉴판으로 대체
     const pl=new THREE.PointLight(0xffd6a0,.6,5);pl.position.set(-5.6,2.4,13.6);scene.add(pl);
     COLLIDERS.push({x0:-7.6,x1:-5.06,z0:11.55,z1:15.65});
-    PROPS.push({x:-4.9,z:13.6,r:2.4,label:'딸기 음료 주문 🥤',type:'cafe',stand:V(-4.5,0,13.5),yaw:-Math.PI/2,cam:V(-2.8,2.4,12.2),look:V(-6.6,1.75,13.9)});
+    PROPS.push({x:-4.9,z:13.6,r:2.4,label:'딸기 음료 주문 🥤',type:'cafe',stand:V(-4.5,0,13.5),yaw:-Math.PI/2,cam:V(-1.7,2.5,13.1),look:V(-6.6,1.5,13.4)});
   }
 
   // ---- 티켓 키오스크 (오른쪽 앞) ----
@@ -1515,7 +1518,7 @@ const LOBBY_SPOT=V(0,0,17.2), LANDING=V(0,0,5.3), DOORWAY=V(0,0,11.6);
 const LOBBY_CAM=V(0,2.3,20.9), LOBBY_LOOK=V(0,1.05,12);
 const OVERVIEW_POS=V(0,2.5,9.3), OVERVIEW_LOOK=V(0,-.6,-10);
 const CAM_OFF=V(0,1.9,3.1), LOOK_OFF=V(0,.5,-6);
-const LOBBY_HINT='WASD·방향키로 이동 · 우클릭 드래그로 시점 회전 · 휠로 줌 · C키로 내 캐릭터 앞모습 보기 · 숨은 딸기를 찾아 케이크에 올려보세요';
+const LOBBY_HINT='WASD·방향키로 이동 · 우클릭 드래그로 시점 회전 · 휠로 줌 · V키로 카메라 자동/수동 · C키로 앞모습 보기 · 숨은 딸기를 찾아 케이크에 올려보세요';
 // 시점(우클릭 드래그): orbYaw = 카메라가 바라보는 방향, orbPitch = 내려다보는 각도
 let orbYaw=Math.PI, orbPitch=.42, orbDist=3.6;const pad={}; // orbDist: 마우스 휠로 줌 (1.4~7.5)
 const CHOOSE_HINT='불이 켜진 내 좌석을 눌러 앉으세요';
@@ -1550,6 +1553,8 @@ function ui(){
   show('lobbyBtn',state==='choosing'||state==='seated');
   for(const id of['standBtn','waveBtn','underBtn','loadBtn'])show(id,state==='seated');
   show('cupBtn',state==='seated'&&(me.items.drink.visible||!!holderCup));
+  show('sipBtn',(state==='lobby'||state==='choosing'||state==='seated')&&(me.items.drink.visible||!!holderCup)&&!sipping);
+  show('camBtn',state==='lobby'||state==='choosing');$('camBtn').textContent=camAuto?'🎥 카메라: 자동':'🎥 카메라: 수동';
   $('cupBtn').textContent=holderCup?'음료 다시 들기':'컵홀더에 놓기';
   show('backBtn',state==='interact'&&act&&['claw','booth','mole'].includes(act.type)&&act.phase!=='play');
   if(state!=='lobby'&&state!=='choosing'){nearProp=null;}
@@ -1685,7 +1690,7 @@ function startInteract(pr){
   if(pr.type==='cake'){const C=pr.C,p=me.root.position;let dx=p.x-C.x,dz=p.z-C.z,d=Math.hypot(dx,dz)||1;dx/=d;dz/=d;
     stand=V(C.x+dx*1.0,0,C.z+dz*1.0);yaw=Math.atan2(-dx,-dz);cam=V(C.x+dx*2.5-dz*1.1,2.9,C.z+dz*2.5+dx*1.1);look=V(C.x,1.15,C.z);}
   if(pr.type==='booth'){pre=[{to:V(5.65,0,23.1),follow:true}];stand=V(7.05,0,23.1);yaw=-Math.PI/2;cam=V(5.15,1.45,23.1);look=V(7.05,.9,23.1);}
-  travel([...pre,{to:stand.clone(),follow:true},{to:stand.clone(),yaw,cam,look,dur:1.1,idle:true}],()=>{
+  travel([...pre,{to:stand.clone(),follow:true},{to:stand.clone(),yaw,cam,look,dur:1.7,idle:true}],()=>{
     state='interact';act={pr,type:pr.type,t:0,phase:'start'};ui();
     ({cafe:beginCafe,ticket:beginTicket,claw:beginClaw,mole:beginMole,booth:beginBooth,cake:beginCake})[pr.type]();
   });
@@ -2062,13 +2067,15 @@ function useVideo(src){if(video){video.pause();}video=document.createElement('vi
   video.addEventListener('error',()=>{video=null;videoTex=null;});
   videoTex=new THREE.VideoTexture(video);videoTex.encoding=THREE.sRGBEncoding;}
 try{useVideo('assets/video/film.mp4');}catch(e){console.warn('video',e);}
+let videoPending=false;
+setTimeout(()=>{const v0=video;fetch('assets/video/film.mp4').then(r=>r.ok?r.blob():null).then(b=>{if(!b||video!==v0||!v0.paused||screenMat.map===videoTex)return;v0.src=URL.createObjectURL(b);v0.load();}).catch(()=>{});},2500);
 function startFilm(){
   finaleClear();paused=false;
-  if(video){screenMat.map=videoTex;try{video.currentTime=0;}catch(e){}video.play().catch(()=>{video.muted=true;video.play().catch(()=>{});});}
-  else{filmMode='film';filmStart=performance.now();screenMat.map=filmTex;}
+  filmMode='film';filmStart=performance.now();screenMat.map=filmTex;videoPending=!!video; // 카운트다운(5초)은 화면에 직접 그리고, 끝나면 영상으로 넘김
+  if(video){try{video.pause();video.currentTime=0;}catch(e){}}
   screenMat.needsUpdate=true;
 }
-function stopFilm(){filmMode='idle';if(video)video.pause();screenMat.map=filmTex;screenMat.needsUpdate=true;finaleClear();}
+function stopFilm(){videoPending=false;filmMode='idle';if(video)video.pause();screenMat.map=filmTex;screenMat.needsUpdate=true;finaleClear();}
 $('file').onchange=e=>{
   const f=e.target.files[0];if(!f)return;
   if(video){video.pause();URL.revokeObjectURL(video.src);}
@@ -2122,6 +2129,7 @@ addEventListener('keydown',e=>{
     else if(nearProp&&(state==='lobby'||state==='choosing')){e.preventDefault();startInteract(nearProp);}}
   if(e.code==='Escape'&&state==='interact')endInteract();
   if(e.code==='KeyC'&&!e.repeat&&state!=='interact')toggleView();
+  if(e.code==='KeyV'&&!e.repeat&&(state==='lobby'||state==='choosing'))toggleCam();
   if(state==='interact'&&act&&act.type==='mole'&&act.phase==='play'&&!e.repeat){const MK={Numpad7:0,Numpad8:1,Numpad9:2,Numpad4:3,Numpad5:4,Numpad6:5,Numpad1:6,Numpad2:7,Numpad3:8,Digit7:0,Digit8:1,Digit9:2,Digit4:3,Digit5:4,Digit6:5,Digit1:6,Digit2:7,Digit3:8};
     if(e.code in MK){e.preventDefault();moleHit(MK[e.code]);}}
 });
@@ -2212,16 +2220,25 @@ function updateWalk(dt){
   if(best!==nearProp||(best&&best.type==='cake')){nearProp=best;show('actBtn',!!best);
     if(best)$('actBtn').textContent=(best.type==='cake'&&!me.items.berry.visible?'🍰 '+CAKES[best.C.k].name+' · 딸기를 주워 와서 올려요':best.label)+' (Space)';}
 }
-let viewFront=false;
+let viewFront=false,sipping=false,camAuto=false;try{camAuto=localStorage.getItem('camAuto')==='1';}catch(e){}
 function toggleView(){if(state!=='lobby'&&state!=='choosing')return;viewFront=!viewFront;freeCam=true;ui();}
 $('viewBtn').onclick=toggleView;
+// 음료 마시기: 들고 있던(또는 컵홀더의) 음료를 마시면 사라지고, 카페에서 다시 주문할 수 있음
+$('sipBtn').onclick=()=>{if(sipping||!(me.items.drink.visible||holderCup))return;sipping=true;
+  if(holderCup){scene.remove(holderCup);holderCup=null;me.items.drink.visible=true;}
+  meSt.armOv[0]=-1.5;ui();
+  setTimeout(()=>{meSt.armOv[0]=null;setDrink(me,-1);sipping=false;renderInv();publishPresence(true);toast('🥤 다 마셨어요! 카페에서 다시 주문할 수 있어요');ui();},1300);};
+// 카메라 모드: 수동(우클릭 드래그로 돌림) / 자동(걸어가는 방향 뒤로 따라옴). V키 또는 버튼으로 전환
+function toggleCam(){camAuto=!camAuto;try{localStorage.setItem('camAuto',camAuto?'1':'0');}catch(e){}toast(camAuto?'🎥 자동 카메라: 캐릭터 뒤를 따라가요 (V키로 전환)':'🎥 수동 카메라: 우클릭 드래그로 돌려요 (V키로 전환)');ui();}
+$('camBtn').onclick=toggleCam;
 // 걸어 다닐 때의 시점: 회전·높이·거리를 각각 부드럽게 따라가게 한 뒤 그 값으로 카메라 위치를 바로 계산 → 돌릴 때 밀리거나 미끄러지지 않음.
 // 벽에 닿으면 카메라를 옆으로 밀어내지 않고 캐릭터 쪽으로 당김(거리만 줄임).
-let orbYS=Math.PI,orbPS=.42,orbDS=3.6,camPiv=null,freeBlend=0;
+let orbYS=Math.PI,orbPS=.42,orbDS=3.6,camPiv=null,freeBlend=0,folYaw=null;
 function camInside(x,y,z,aud,px){const door=Math.abs(x)<1.2&&Math.abs(px)<1.3;
   return aud?(Math.abs(x)<9.4&&z>-16.8&&y<6.8&&(z<9.6||door)):(Math.abs(x)<7.55&&z<25.6&&y<5.2&&(z>10.4||door));}
 function followCam(dt){
   const free=(state==='lobby'||state==='choosing')&&!camFollow;
+  if(free&&camAuto&&keyWalk&&!viewFront){let df=((meYaw-orbYaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;if(Math.abs(df)<2.5)orbYaw+=df*Math.min(1,dt*1.7);} // 자동 모드: 걷는 방향 뒤로 천천히 돌아감(뒤로 걸을 땐 그대로)
   if(!free)orbYaw=meYaw; // 연출 이동 중에는 캐릭터 뒤를 따라가고, 끝나면 그 방향에서 이어짐
   const p=me.root.position,aud=p.z<10,vf=viewFront&&(state==='lobby'||state==='choosing');
   if(free&&!vf){
@@ -2234,12 +2251,13 @@ function followCam(dt){
     orbDS+=(d-orbDS)*(d<orbDS?1-Math.exp(-dt*22):1-Math.exp(-dt*5));
     const dc=V(camPiv.x-fx_*orbDS*cp,camPiv.y+orbDS*sn,camPiv.z-fz*orbDS*cp),dl=V(camPiv.x+fx_*.8,camPiv.y-sn*.8+(aud?-.2:0),camPiv.z+fz*.8);
     freeBlend=Math.min(1,freeBlend+dt*2.5);const b=freeBlend<1?1-Math.exp(-dt*7):1;camera.position.lerp(dc,b);lookBase.lerp(dl,b);return;}
-  freeBlend=0;const yw=meYaw,fx_=Math.sin(yw),fz=Math.cos(yw);
+  if(freeBlend>0||folYaw===null)folYaw=orbYS;{let df=((meYaw-folYaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;folYaw+=df*Math.min(1,dt*(vf?8:1.6));}
+  freeBlend=0;const yw=vf?meYaw:folYaw,fx_=Math.sin(yw),fz=Math.cos(yw);
   const dc=vf?V(p.x+fx_*2.3-fz*.9,p.y+1.35,p.z+fz*2.3+fx_*.9):V(p.x-fx_*3.3,p.y+2.25,p.z-fz*3.3);
   if(aud){dc.x=Math.max(-9.5,Math.min(9.5,dc.x));dc.z=Math.max(-16.8,dc.z);if(dc.z>9.7&&!(Math.abs(dc.x)<1.3&&Math.abs(p.x)<1.3))dc.z=9.7;}
   else{dc.x=Math.max(-7.5,Math.min(7.5,dc.x));dc.z=Math.min(25.6,dc.z);dc.y=Math.min(dc.y,5);if(dc.z<10.3&&!(Math.abs(dc.x)<1.3&&Math.abs(p.x)<1.3))dc.z=10.3;}
   const dl=vf?V(p.x,p.y+.75,p.z):V(p.x+fx_*7,p.y+(aud?-.1:.9),p.z+fz*7);
-  const a=1-Math.exp(-dt*4);camera.position.lerp(dc,a);lookBase.lerp(dl,a);
+  const a=1-Math.exp(-dt*3);camera.position.lerp(dc,a);lookBase.lerp(dl,a);
 }
 
 // =====================================================================
@@ -2256,6 +2274,8 @@ function frame(now){
   updateWalk(dt);
   if((freeCam&&(state==='lobby'||state==='choosing'))||camFollow)followCam(dt);
   updateClaw(dt,now);updateMole(dt,now);updateInteract(dt,now);updateHidden(dt,now);updateBots(dt,now);updatePeers(dt,now);updateFinale(dt,now);updateZones();
+  {const base=innerWidth<innerHeight?78:60;let tf=base;if(state==='seated'&&mySeat){const dz=rowZ(mySeat.row)-SCREEN.z;tf=Math.max(30,Math.min(base,2*Math.atan(SCREEN.h/2/dz)*180/Math.PI/.6));} // 뒷자리일수록 화면을 당겨서(줌) 스크린이 크게 보이게
+   if(Math.abs(camera.fov-tf)>.05){camera.fov+=(tf-camera.fov)*Math.min(1,dt*2.5);camera.updateProjectionMatrix();}}
   if(cafeM)animAvatar(cafeM.bar,dt,now,cafeM.bar.st||{walking:false,seated:false,cheer:0,wave:0});
   // 내 캐릭터
   let dy=((meYawT-meYaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;meYaw+=dy*Math.min(1,dt*8);me.root.rotation.y=meYaw;
