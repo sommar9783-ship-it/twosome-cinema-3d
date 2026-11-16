@@ -1108,7 +1108,7 @@ function animAvatar(A,dt,now,o){
       {const ef=R.B[s+'ForeArm'];if(ef){_bq.setFromAxisAngle(AX,fo).multiply(_bz.setFromAxisAngle(AZ,(P?(P[5]||0)+(P[3]?Math.sin(now/1000*9)*P[3]:0):0)*sg));ef.b.quaternion.copy(ef.rest).multiply(_bi.copy(ef.wr).invert()).multiply(_bq).multiply(ef.wr);}}});
     R.w.position.y+=((o.seated?.1:0)-R.w.position.y)*k;R.w.position.z+=((o.seated?.07:0)-R.w.position.z)*k;
   }
-  A.shadow.visible=!o.seated;
+  A.shadow.visible=!o.seated;A.topper.visible=!o.seated; // 앉아 있을 때는 머리 픽을 숨김(스크린을 가리지 않게)
 }
 const ticketMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.6,side:THREE.DoubleSide});
 
