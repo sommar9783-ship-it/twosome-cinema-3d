@@ -2062,13 +2062,13 @@ $('underBtn').onclick=()=>{
       toast('어? 의자 밑에 딸기가 숨어 있어요! 눌러서 주워보세요 🍓');return;}}
   toast('의자 밑에는 아무것도 없네요');
 };
-function useVideo(src){if(video){video.pause();}video=document.createElement('video');video.src=src;video.loop=false;video.playsInline=true;video.preload='auto';video.crossOrigin='anonymous';
+function useVideo(src){if(video){video.pause();}video=document.createElement('video');video.src=src;video.loop=false;video.playsInline=true;video.preload=src.startsWith('blob:')?'auto':'none';
   video.addEventListener('ended',()=>{screenMat.map=filmTex;filmMode='end';screenMat.needsUpdate=true;onFilmEnd();});
   video.addEventListener('error',()=>{video=null;videoTex=null;});
   videoTex=new THREE.VideoTexture(video);videoTex.encoding=THREE.sRGBEncoding;}
 try{useVideo('assets/video/film.mp4');}catch(e){console.warn('video',e);}
 let videoPending=false;
-setTimeout(()=>{const v0=video;fetch('assets/video/film.mp4').then(r=>r.ok?r.blob():null).then(b=>{if(!b||video!==v0||!v0.paused||screenMat.map===videoTex)return;v0.src=URL.createObjectURL(b);v0.load();}).catch(()=>{});},2500);
+setTimeout(()=>{const v0=video;fetch('assets/video/film.mp4').then(r=>r.ok?r.blob():null).then(b=>{if(!b||video!==v0||!v0.paused||screenMat.map===videoTex)return;v0.src=URL.createObjectURL(b);v0.load();}).catch(()=>{});},6000); // 게임 로딩이 끝난 뒤에 영상(3.6MB)을 통째로 받아 둠
 function startFilm(){
   finaleClear();paused=false;
   filmMode='film';filmStart=performance.now();screenMat.map=filmTex;videoPending=!!video; // 카운트다운(5초)은 화면에 직접 그리고, 끝나면 영상으로 넘김
