@@ -1449,8 +1449,8 @@ function drawKiosk(K,phase,seatsTxt,t=0){
   c.fillStyle='#120c0c';c.fillRect(0,0,w,h);
   c.fillStyle='#d9a54a';c.fillRect(0,0,w,52);c.fillStyle='#2a0c10';c.font=`900 22px ${F}`;c.textAlign='center';c.textBaseline='middle';c.fillText('TWOSOME CINEMA',w/2,27);
   if(phase==='home'){
-    const g2=c.createLinearGradient(0,70,0,240);g2.addColorStop(0,'#ffd6e0');g2.addColorStop(1,'#ff8fab');c.fillStyle=g2;c.fillRect(20,70,120,170);
-    drawBerry(c,80,155,40,0,true);
+    if(PH.main){const im=PH.main,bw=124,bh=155,k=Math.max(bw/im.width,bh/im.height),sw=bw/k,sh=bh/k;c.drawImage(im,(im.width-sw)/2,(im.height-sh)/2,sw,sh,18,72,bw,bh);c.strokeStyle='#d9a54a';c.lineWidth=2;c.strokeRect(18,72,bw,bh);} // 발권기 화면: 〈딸기 때문에〉 포스터
+    else{const g2=c.createLinearGradient(0,70,0,240);g2.addColorStop(0,'#ffd6e0');g2.addColorStop(1,'#ff8fab');c.fillStyle=g2;c.fillRect(20,70,120,170);drawBerry(c,80,155,40,0,true);}
     c.textAlign='left';c.fillStyle='#fff';c.font=`900 22px ${F}`;c.fillText('〈딸기 때문에〉',150,95);
     c.fillStyle='rgba(255,255,255,.6)';c.font=`400 14px ${F}`;c.fillText('SCREEN 01 · 전체관람가',150,122);
     c.strokeStyle='#d9a54a';c.lineWidth=2;c.strokeRect(150,145,160,34);c.fillStyle='#d9a54a';c.font=`700 16px ${F}`;c.fillText('지금 상영 중',165,163);
