@@ -124,6 +124,7 @@
   <div class="btns">
     <button class="btn ghost hidden" id="viewBtn">👀 내 캐릭터 보기</button>
     <button class="btn hidden" id="enterBtn">상영관 입장</button>
+    <button class="btn hidden" id="seatBtn">🎟 내 자리로 가기</button>
     <button class="btn ghost hidden" id="cupBtn">컵홀더에 놓기</button>
     <button class="btn ghost hidden" id="sipBtn">🥤 음료 마시기</button>
     <button class="btn ghost hidden" id="camBtn">🎥 카메라: 수동</button>
@@ -1521,7 +1522,7 @@ const CAM_OFF=V(0,1.9,3.1), LOOK_OFF=V(0,.5,-6);
 const LOBBY_HINT='WASD·방향키로 이동 · 우클릭 드래그로 시점 회전 · 휠로 줌 · V키로 카메라 자동/수동 · C키로 앞모습 보기 · 숨은 딸기를 찾아 케이크에 올려보세요';
 // 시점(우클릭 드래그): orbYaw = 카메라가 바라보는 방향, orbPitch = 내려다보는 각도
 let orbYaw=Math.PI, orbPitch=.42, orbDist=3.6;const pad={}; // orbDist: 마우스 휠로 줌 (1.4~7.5)
-const CHOOSE_HINT='불이 켜진 내 좌석을 눌러 앉으세요';
+const CHOOSE_HINT='"내 자리로 가기"를 누르거나, 불이 켜진 내 좌석을 눌러 앉으세요';
 const me=makeAvatar({outfit:0,pants:0xffd64a});scene.add(me.root);me.root.position.copy(LOBBY_SPOT);
 const meSt={walking:false,seated:false,cheer:0,wave:0,crouch:0,armOv:[null,null]};
 let meYaw=Math.PI, meYawT=Math.PI, moving=false, seatedPose=false;
@@ -1552,6 +1553,7 @@ function ui(){
   show('enterBtn',state==='lobby');show('viewBtn',state==='lobby'||state==='choosing');$('viewBtn').textContent=viewFront?'🎥 뒤에서 보기':'👀 내 캐릭터 보기';
   show('lobbyBtn',state==='choosing'||state==='seated');
   for(const id of['standBtn','waveBtn','underBtn','loadBtn'])show(id,state==='seated');
+  show('seatBtn',state==='choosing'&&hasTicket());
   show('cupBtn',state==='seated'&&(me.items.drink.visible||!!holderCup));
   show('sipBtn',(state==='lobby'||state==='choosing'||state==='seated')&&(me.items.drink.visible||!!holderCup)&&!sipping);
   show('camBtn',state==='lobby'||state==='choosing');$('camBtn').textContent=camAuto?'🎥 카메라: 자동':'🎥 카메라: 수동';
@@ -2021,9 +2023,23 @@ function enterTheater(){
   if(state!=='lobby')return;
   if(!hasTicket()){toast('🎟 먼저 오른쪽 티켓 발권기에서 좌석을 골라 티켓을 뽑아주세요');return;}
   goMoving();const p=me.root.position;
-  travel([{to:V(0,0,Math.max(p.z,DOORWAY.z+.8)),follow:true},{to:DOORWAY.clone(),dur:1.4,follow:true},{to:LANDING.clone(),cam:OVERVIEW_POS,look:OVERVIEW_LOOK,dur:2.4}],toChoosing);
+  travel([{to:V(0,0,Math.max(p.z,DOORWAY.z+.8)),follow:true},{to:DOORWAY.clone(),dur:1.4,follow:true},{to:LANDING.clone(),cam:OVERVIEW_POS,look:OVERVIEW_LOOK,dur:2.4}],()=>{const s=mySeatObj();if(s)walkToSeat(s);else toChoosing();}); // 입장하면 내 좌석까지 자동으로 걸어가 앉음
 }
 $('enterBtn').onclick=enterTheater;
+function mySeatObj(){return hasTicket()?seats.find(s=>s.code===myTicket.seats[0])||null:null;}
+function walkToSeat(seat){
+  if(!seat)return;goMoving();mySeat=seat;const x=seat.g.position.x,y=rowY(seat.row),z=rowZ(seat.row),lz=z-.6,p=me.root.position,ax=Math.abs(p.x),keys=[];
+  if(p.z>=LAND_Z)keys.push({to:V(0,0,Math.min(p.z,LANDING.z)),follow:true});
+  else if(ax>=.6&&ax<5.75&&p.z>=SEAT_Z0-.3){const r=Math.max(0,Math.min(ROWS-1,Math.round((p.z+.6-ROW0_Z)/ROW_GAP))),l0=rowZ(r)-.6;
+    if(r===seat.row){keys.push({to:V(p.x,y,lz),follow:true});} // 이미 같은 열이면 복도로 안 나가고 바로 옆으로
+    else keys.push({to:V(p.x,rowY(r),l0),follow:true},{to:V(0,rowY(r),l0),follow:true});}
+  else if(ax>=.6)keys.push({to:V(p.x,0,LANDING.z),follow:true},{to:V(0,0,LANDING.z),follow:true});
+  if(!(keys.length===1&&keys[0].to.z===lz&&keys[0].to.x===p.x))keys.push({to:V(0,y,lz),follow:true});
+  keys.push({to:V(x,y,lz),follow:true},{to:V(x,y,z-.5),yaw:Math.PI,dur:.35,follow:true},
+    {to:V(x,y+.3,z+.04),sit:true,yaw:Math.PI,dur:.7,cam:V(x,y+1.98,z+.42),look:SCREEN_CENTER,after:()=>{houseT=.08;}});
+  hint(seat.label+' · 내 자리로 가는 중…');
+  travel(keys,()=>{state='seated';ui();startFilm();hint(seat.label+' · 상영이 곧 시작돼요 · 드래그로 둘러보기');publishPresence(true);});
+}
 function sit(seat){
   goMoving();mySeat=seat;const x=seat.g.position.x,y=rowY(seat.row),z=rowZ(seat.row);
   me.root.position.set(x,y,z-.5);meYaw=meYawT=Math.PI;me.root.rotation.y=Math.PI; // 걸어서 돌아가지 않고 바로 자리 앞으로
@@ -2223,6 +2239,7 @@ function updateWalk(dt){
 let viewFront=false,sipping=false,camAuto=false;try{camAuto=localStorage.getItem('camAuto')==='1';}catch(e){}
 function toggleView(){if(state!=='lobby'&&state!=='choosing')return;viewFront=!viewFront;freeCam=true;ui();}
 $('viewBtn').onclick=toggleView;
+$('seatBtn').onclick=()=>{if(state!=='choosing')return;const s=mySeatObj();if(s)walkToSeat(s);};
 // 음료 마시기: 들고 있던(또는 컵홀더의) 음료를 마시면 사라지고, 카페에서 다시 주문할 수 있음
 $('sipBtn').onclick=()=>{if(sipping||!(me.items.drink.visible||holderCup))return;sipping=true;
   if(holderCup){scene.remove(holderCup);holderCup=null;me.items.drink.visible=true;}
@@ -2453,8 +2470,8 @@ const start=()=>{
      let b=new THREE.Box3().setFromObject(S.model);
      if(b.max.z-b.min.z>3.2){S.model.scale.z*=2.7/(b.max.z-b.min.z);S.model.updateMatrixWorld(true);b=new THREE.Box3().setFromObject(S.model);} // 건물이 너무 깊게 생성된 경우 원래 디자인 깊이로 줄임
      S.model.position.z+=10.16-b.min.z;S.model.updateMatrixWorld(true);window.__loc=S;
-     if(PH.main){const im=PH.main,t=textTex(450,601,(c,w,h)=>{const k=Math.max(w/im.width,h/im.height);c.drawImage(im,(w-im.width*k)/2,(h-im.height*k)/2,im.width*k,im.height*k);});
-       const pp=new THREE.Mesh(new THREE.PlaneGeometry(.94,1.256),new THREE.MeshStandardMaterial({map:t,roughness:.5,emissive:0xffffff,emissiveMap:t,emissiveIntensity:.25}));pp.position.set(1.86,1.85,.605);S.model.add(pp);}
+     if(PH.main){const im=PH.main,t=textTex(480,600,(c,w,h)=>{const k=Math.max(w/im.width,h/im.height);c.drawImage(im,(w-im.width*k)/2,(h-im.height*k)/2,im.width*k,im.height*k);});
+       const pp=new THREE.Mesh(new THREE.PlaneGeometry(.96,1.2),new THREE.MeshStandardMaterial({map:t,roughness:.5,emissive:0xffffff,emissiveMap:t,emissiveIntensity:.25}));pp.position.set(1.86,1.85,.556);S.model.add(pp);}
      // 매표 창구 안의 직원(벨보이): 카운터 뒤에 서서 손님 쪽을 봄. 숨 쉬듯 살짝 움직임
      window.newGLTF().load('assets/models/staff.glb',gl=>{window.deq(gl.scene);const st=gl.scene,bb=new THREE.Box3().setFromObject(st),k=.7*1.14/(bb.max.y-bb.min.y);
        st.traverse(o=>{if(o.isMesh){o.material.roughness=.75;o.material.metalness=0;o.material.emissive=new THREE.Color(0xffffff);o.material.emissiveMap=o.material.map;o.material.emissiveIntensity=.22;}});

@@ -160,10 +160,9 @@ def build_loc():
     text("TICKETS", 0.2, (bx, -1.045, 2.2), P["gold"], extrude=0.02, spacing=1.05)
     # 포스터 액자 (오른쪽)
     px = 1.86
-    box((1.06, 0.08, 1.5), (px, F - 0.04, 1.85), P["gold"], 0.035); box((0.9, 0.03, 1.34), (px, F - 0.085, 1.85), P["cream"], 0.01)
-    box((0.9, 0.035, 0.42), (px, F - 0.087, 2.31), P["wine"], 0.008); sphere(0.2, (px, F - 0.09, 1.72), P["red"], 24, 14, (0.9, 0.25, 1.15))
-    sphere(0.09, (px, F - 0.06, 2.66), P["gold"], 16, 10)
-    text("NOW SHOWING", 0.085, (px, F - 0.11, 2.31), P["gold"], extrude=0.008, spacing=1.05)
+    # 포스터 원본 비율(4:5)에 맞춘 액자: 안쪽 0.96 x 1.2 (게임이 그 앞에 포스터 그림을 붙임)
+    box((1.1, 0.08, 1.34), (px, F - 0.04, 1.85), P["gold"], 0.035); box((0.96, 0.03, 1.2), (px, F - 0.085, 1.85), P["dark"], 0.006)
+    sphere(0.09, (px, F - 0.06, 2.6), P["gold"], 16, 10)
     # 입구 위 커튼 장식(고정)
     box((1.5, 0.08, 0.3), (0, -0.3, 2.5), P["red"], 0.06)
     # 본체와 차양 사이 금테
@@ -248,7 +247,9 @@ def build_door():
         for z in (1.02, 1.68): cyl(0.016, 0.08, (hx, -0.095, z), P["gold"], (math.pi / 2, 0, 0), 14)
     export("door")
 
+ONLY = os.environ.get("ONLY")  # 예: ONLY=loc 이면 그 모델만 다시 만듦
 for fn in (build_loc, build_claw, build_door):
+    if ONLY and fn.__name__ != "build_" + ONLY: continue
     try: fn()
     except Exception as e:
         import traceback; traceback.print_exc(); print("FAILED", fn.__name__, e)
